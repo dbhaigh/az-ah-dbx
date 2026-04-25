@@ -1,0 +1,80 @@
+name: Deploy Azure Infrastructure
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allows manual triggering from the UI
+
+env:
+  # Configuration
+  AZURE_ENV: "dev"
+  TF_VAR_environment: "dev"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # If this fails, we want to know immediately
+    if: github.repository == 'YOUR_USERNAME/YOUR_REPO'
+
+    steps:
+      # 1. Checkout Code
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # 2. Setup Azure CLI (Needed for 'gh secret set' later)
+      - name: Setup Azure CLI
+        uses: azure/setup-cli@v1
+
+      # 3. Authenticate with Azure (Using Admin Creds)
+      # NOTE: You must manually create 'AZURE_ADMIN_CREDS' in GitHub Secrets first
+      # Value format: {"clientId":"...","clientSecret":"...","tenantId":"...","subscriptionId":"..."}
+      - name: Azure Login (Admin)
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_ADMIN_CREDS }}
+
+      # 4. Bootstrap (Create SP + Storage Account)
+      - name: Bootstrap Infrastructure
+        run: |
+          cd bootstrap
+          echo "Running terraform init..."
+          terraform init -backend-config="resource_group_name=terraform-infra"
+          
+          echo "Running terraform apply..."
+          # We use a variable file for the secret
+          terraform apply -auto-approve -var-file="${AZURE_ENV}.tfvars"
+
+      # 5. Extract & Save Credentials (The Handshake)
+      - name: Save Service Principal to GitHub Secrets
+        run: |
+          cd bootstrap
+          
+          # Extract outputs
+          CLIENT_ID=$(terraform output -raw client_id)
+          CLIENT_SECRET=$(terraform output -raw client_secret)
+          TENANT_ID=$(terraform output -raw tenant_id)
+          SUB_ID=$(terraform output -raw subscription_id)
+
+          # Save to GitHub Secrets using the CLI
+          gh secret set ARM_CLIENT_ID --body "$CLIENT_ID"
+          gh secret set ARM_CLIENT_SECRET --body "$CLIENT_SECRET"
+          gh secret set ARM_TENANT_ID --body "$TENANT_ID"
+          gh secret set ARM_SUBSCRIPTION_ID --body "$SUB_ID"
+          
+          echo "Credentials saved successfully."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 6. Deploy Main Infrastructure
+      - name: Deploy Main Infrastructure
+        run: |
+          cd ..
+          
+          echo "Initializing Main Terraform..."
+          terraform init
+
+          echo "Running Terraform Plan..."
+          terraform plan -out=tfplan -var-file="${AZURE_ENV}.tfvars"
+
+          echo "Running Terraform Apply..."
+          terraform apply -auto-approve tfplan
