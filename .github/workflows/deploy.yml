@@ -14,7 +14,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     # If this fails, we want to know immediately
-    if: github.repository == 'YOUR_USERNAME/YOUR_REPO'
+    if: github.repository == 'dbhaigh/az-ah-dbx'
 
     steps:
       # 1. Checkout Code
