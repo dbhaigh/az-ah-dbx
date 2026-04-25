@@ -23,13 +23,13 @@ jobs:
 
       # 2. Setup Azure CLI (Needed for 'gh secret set' later)
       - name: Setup Azure CLI
-        uses: azure/cli-action@v4
+        uses: Azure/cli-action@v4
 
       # 3. Authenticate with Azure (Using Admin Creds)
       # NOTE: You must manually create 'AZURE_ADMIN_CREDS' in GitHub Secrets first
       # Value format: {"clientId":"...","clientSecret":"...","tenantId":"...","subscriptionId":"..."}
       - name: Azure Login (Admin)
-        uses: azure/login@v1
+        uses: Azure/login@v1
         with:
           creds: ${{ secrets.AZURE_ADMIN_CREDS }}
 
